@@ -86,7 +86,7 @@ func initializeSharedReplayRecorders(
 			sharedStore = storage
 		}
 
-		recorder := createSharedReplayRecorder(sharedStore, pluginCfg)
+		recorder := createSharedReplayRecorder(sharedStore, pluginCfg, &cfg.RouterReplay)
 		recorders[decision.Name] = recorder
 		if replayRecorder == nil {
 			replayRecorder = recorder
@@ -104,6 +104,10 @@ func createReplayRecorder(
 	globalCfg *config.RouterReplayConfig,
 ) (*routerreplay.Recorder, error) {
 	maxBodyBytes := resolveReplayMaxBodyBytes(pluginCfg.MaxBodyBytes)
+	maxToolTraceBytes := resolveReplayMaxBodyBytes(pluginCfg.MaxToolTraceBytes)
+	if maxToolTraceBytes <= 0 && globalCfg != nil {
+		maxToolTraceBytes = resolveReplayMaxBodyBytes(globalCfg.MaxToolTraceBytes)
+	}
 
 	storage, err := createReplayStore(decisionName, backend, pluginCfg, globalCfg)
 	if err != nil {
@@ -111,19 +115,25 @@ func createReplayRecorder(
 	}
 
 	recorder := routerreplay.NewRecorder(storage)
-	recorder.SetCapturePolicy(pluginCfg.CaptureRequestBody, pluginCfg.CaptureResponseBody, maxBodyBytes)
+	recorder.SetCapturePolicy(pluginCfg.CaptureRequestBody, pluginCfg.CaptureResponseBody, maxBodyBytes, maxToolTraceBytes)
 	return recorder, nil
 }
 
 func createSharedReplayRecorder(
 	storage store.Storage,
 	pluginCfg *config.RouterReplayPluginConfig,
+	globalCfg *config.RouterReplayConfig,
 ) *routerreplay.Recorder {
+	maxToolTraceBytes := resolveReplayMaxBodyBytes(pluginCfg.MaxToolTraceBytes)
+	if maxToolTraceBytes <= 0 && globalCfg != nil {
+		maxToolTraceBytes = resolveReplayMaxBodyBytes(globalCfg.MaxToolTraceBytes)
+	}
 	recorder := routerreplay.NewRecorder(storage)
 	recorder.SetCapturePolicy(
 		pluginCfg.CaptureRequestBody,
 		pluginCfg.CaptureResponseBody,
 		resolveReplayMaxBodyBytes(pluginCfg.MaxBodyBytes),
+		maxToolTraceBytes,
 	)
 	return recorder
 }

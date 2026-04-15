@@ -115,7 +115,7 @@ func (r *OpenAIRouter) startRouterReplay(
 		return
 	}
 
-	configureReplayRecorder(recorder, ctx.RouterReplayPluginConfig)
+	configureReplayRecorder(recorder, ctx.RouterReplayPluginConfig, nil)
 	record := buildReplayRoutingRecord(ctx, originalModel, selectedModel, decisionName)
 	if !persistReplayRecord(ctx, recorder, record) {
 		return
@@ -140,11 +140,17 @@ func (r *OpenAIRouter) resolveReplayRecorder(decisionName string) *routerreplay.
 func configureReplayRecorder(
 	recorder *routerreplay.Recorder,
 	cfg *config.RouterReplayPluginConfig,
+	globalCfg *config.RouterReplayConfig,
 ) {
+	maxToolTraceBytes := resolveReplayMaxBodyBytes(cfg.MaxToolTraceBytes)
+	if maxToolTraceBytes <= 0 && globalCfg != nil {
+		maxToolTraceBytes = resolveReplayMaxBodyBytes(globalCfg.MaxToolTraceBytes)
+	}
 	recorder.SetCapturePolicy(
 		cfg.CaptureRequestBody,
 		cfg.CaptureResponseBody,
 		resolveReplayMaxBodyBytes(cfg.MaxBodyBytes),
+		maxToolTraceBytes,
 	)
 }
 
@@ -156,6 +162,7 @@ func buildReplayRoutingRecord(
 ) routerreplay.RoutingRecord {
 	guardrailsEnabled, jailbreakEnabled, piiEnabled, hallucinationEnabled := replayGuardrailState(ctx)
 	decisionTier, decisionPriority := replayDecisionMetadata(ctx)
+	prompt, toolDefs, apiType := extractReplayPromptAndTools(ctx)
 	record := routerreplay.RoutingRecord{
 		RequestID:         ctx.RequestID,
 		Decision:          decisionName,
@@ -175,6 +182,9 @@ func buildReplayRoutingRecord(
 		ToolTrace:         buildReplayRequestToolTrace(ctx),
 		Streaming:         ctx.ExpectStreamingResponse,
 		FromCache:         ctx.VSRCacheHit,
+
+		Prompt:          prompt,
+		ToolDefinitions: toolDefs,
 
 		GuardrailsEnabled: guardrailsEnabled,
 		JailbreakEnabled:  jailbreakEnabled,
@@ -200,6 +210,13 @@ func buildReplayRoutingRecord(
 	}
 	if len(ctx.OriginalRequestBody) > 0 {
 		record.RequestBody = string(ctx.OriginalRequestBody)
+	}
+	if record.ToolTrace != nil {
+		for i := range record.ToolTrace.Steps {
+			if record.ToolTrace.Steps[i].APIType == "" {
+				record.ToolTrace.Steps[i].APIType = apiType
+			}
+		}
 	}
 	return record
 }

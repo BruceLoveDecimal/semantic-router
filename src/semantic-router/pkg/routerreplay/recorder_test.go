@@ -291,3 +291,83 @@ func assertFieldValue(
 		t.Fatalf("expected field %q=%#v, got %#v", key, expected, value)
 	}
 }
+
+
+func TestTruncateString(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		maxBytes int
+		want     string
+		truncated bool
+	}{
+		{"no truncation", "hello", 10, "hello", false},
+		{"exact limit", "hello", 5, "hello", false},
+		{"truncated", "hello world", 5, "hello", true},
+		{"zero limit", "hello", 0, "hello", false},
+		{"empty string", "", 5, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, truncated := truncateString(tt.value, tt.maxBytes)
+			if got != tt.want || truncated != tt.truncated {
+				t.Errorf("truncateString(%q, %d) = (%q, %v), want (%q, %v)", tt.value, tt.maxBytes, got, truncated, tt.want, tt.truncated)
+			}
+		})
+	}
+}
+
+func TestRecorderAddRecordTruncatesStructuredFields(t *testing.T) {
+	recorder := NewRecorder(store.NewMemoryStore(10, 0))
+	recorder.SetCapturePolicy(true, true, 4096, 10)
+
+	longPrompt := "this is a very long prompt"
+	longArgs := "{\"key\":\"very long arguments\"}"
+	longOutput := "{\"result\":\"very long output\"}"
+
+	record := RoutingRecord{
+		ID:              "replay-truncate-1",
+		RequestID:       "req-1",
+		Decision:        "decision-a",
+		Prompt:          longPrompt,
+		ToolDefinitions: "[{\"name\":\"tool\"}]",
+		ToolTrace: &ToolTrace{
+			Steps: []ToolTraceStep{
+				{Type: "assistant_tool_call", Arguments: longArgs},
+				{Type: "client_tool_result", Output: longOutput},
+			},
+		},
+	}
+
+	recordID, err := recorder.AddRecord(record)
+	if err != nil {
+		t.Fatalf("failed to add record: %v", err)
+	}
+
+	stored, ok := recorder.GetRecord(recordID)
+	if !ok {
+		t.Fatal("expected record to be found")
+	}
+
+	if !stored.PromptTruncated {
+		t.Errorf("expected PromptTruncated to be true")
+	}
+	if len(stored.Prompt) > 10 {
+		t.Errorf("expected Prompt to be truncated to <= 10 bytes, got %d", len(stored.Prompt))
+	}
+	if len(stored.ToolDefinitions) > 10 {
+		t.Errorf("expected ToolDefinitions to be truncated to <= 10 bytes, got %d", len(stored.ToolDefinitions))
+	}
+	if len(stored.ToolTrace.Steps) != 2 {
+		t.Fatalf("expected 2 steps, got %d", len(stored.ToolTrace.Steps))
+	}
+	if !stored.ToolTrace.Steps[0].Truncated {
+		t.Errorf("expected first step Truncated to be true")
+	}
+	if len(stored.ToolTrace.Steps[0].Arguments) > 10 {
+		t.Errorf("expected Arguments truncated to <= 10 bytes, got %d", len(stored.ToolTrace.Steps[0].Arguments))
+	}
+	if len(stored.ToolTrace.Steps[1].Output) > 10 {
+		t.Errorf("expected Output truncated to <= 10 bytes, got %d", len(stored.ToolTrace.Steps[1].Output))
+	}
+}

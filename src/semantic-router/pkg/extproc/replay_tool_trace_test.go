@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/vllm-project/semantic-router/src/semantic-router/pkg/responseapi"
 	"github.com/vllm-project/semantic-router/src/semantic-router/pkg/routerreplay"
 	"github.com/vllm-project/semantic-router/src/semantic-router/pkg/routerreplay/store"
 )
@@ -54,7 +56,7 @@ func TestBuildReplayRoutingRecordIncludesRequestToolTrace(t *testing.T) {
 
 func TestAttachRouterReplayResponseMergesToolTrace(t *testing.T) {
 	recorder := routerreplay.NewRecorder(store.NewMemoryStore(10, 0))
-	recorder.SetCapturePolicy(false, true, 4096)
+	recorder.SetCapturePolicy(false, true, 4096, 4096)
 	requestTrace := newReplayToolTrace([]routerreplay.ToolTraceStep{
 		{Type: replayToolStepUserInput, Source: replayToolSourceRequest, Role: "user", Text: "Find the weather."},
 		{Type: replayToolStepAssistantToolCall, Source: replayToolSourceRequest, Role: "assistant", ToolName: "get_weather", ToolCallID: "call_weather", Arguments: "{\"location\":\"San Francisco\"}"},
@@ -190,5 +192,128 @@ func TestBuildReplayStreamingToolTrace(t *testing.T) {
 		assert.Equal(t, "LLM Final Response", trace.Stage)
 		assert.Equal(t, []string{"get_weather"}, trace.ToolNames)
 		assert.Len(t, trace.Steps, 2)
+	}
+}
+
+func TestExtractReplayPromptAndToolsChatCompletions(t *testing.T) {
+	ctx := &RequestContext{
+		OriginalRequestBody: []byte(`{
+			"model": "auto",
+			"messages": [
+				{"role": "system", "content": "You are helpful."},
+				{"role": "user", "content": "What is the weather?"},
+				{"role": "assistant", "content": "Where are you?"},
+				{"role": "user", "content": "San Francisco"}
+			],
+			"tools": [
+				{"type": "function", "function": {"name": "get_weather"}}
+			]
+		}`),
+	}
+
+	prompt, toolDefs, apiType := extractReplayPromptAndTools(ctx)
+	assert.Equal(t, "San Francisco", prompt)
+	assert.Equal(t, replayAPITypeChatCompletions, apiType)
+	assert.Contains(t, toolDefs, "get_weather")
+}
+
+func TestExtractReplayPromptAndToolsResponsesAPI(t *testing.T) {
+	ctx := &RequestContext{
+		ResponseAPICtx: &ResponseAPIContext{
+			IsResponseAPIRequest: true,
+			OriginalRequest: &responseapi.ResponseAPIRequest{
+				Input: []byte(`[
+					{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Find weather"}]},
+					{"type": "function_call", "call_id": "call_1", "name": "get_weather", "arguments": "{}"},
+					{"type": "function_call_output", "call_id": "call_1", "output": "sunny"}
+				]`),
+				Tools: []responseapi.Tool{
+					{Type: "function", Function: &responseapi.FunctionDef{Name: "get_weather"}},
+				},
+			},
+		},
+	}
+
+	prompt, toolDefs, apiType := extractReplayPromptAndTools(ctx)
+	assert.Equal(t, "Find weather", prompt)
+	assert.Equal(t, replayAPITypeResponses, apiType)
+	assert.Contains(t, toolDefs, "get_weather")
+}
+
+func TestExtractReplayPromptAndToolsResponsesAPITextInput(t *testing.T) {
+	ctx := &RequestContext{
+		ResponseAPICtx: &ResponseAPIContext{
+			IsResponseAPIRequest: true,
+			OriginalRequest: &responseapi.ResponseAPIRequest{
+				Input: []byte(`"What is the capital of France?"`),
+			},
+		},
+	}
+
+	prompt, toolDefs, apiType := extractReplayPromptAndTools(ctx)
+	assert.Equal(t, "What is the capital of France?", prompt)
+	assert.Equal(t, replayAPITypeResponses, apiType)
+	assert.Empty(t, toolDefs)
+}
+
+func TestBuildReplayRoutingRecordIncludesPromptAndToolDefinitions(t *testing.T) {
+	ctx := &RequestContext{
+		RequestID: "req-structured-1",
+		OriginalRequestBody: []byte(`{
+			"model": "auto",
+			"messages": [
+				{"role": "user", "content": "Find the weather in San Francisco."}
+			],
+			"tools": [
+				{"type": "function", "function": {"name": "get_weather"}}
+			]
+		}`),
+	}
+
+	record := buildReplayRoutingRecord(ctx, "MoM", "model-a", "default_route")
+	assert.Equal(t, "Find the weather in San Francisco.", record.Prompt)
+	assert.Contains(t, record.ToolDefinitions, "get_weather")
+	assert.NotNil(t, record.ToolTrace)
+	for _, step := range record.ToolTrace.Steps {
+		assert.Equal(t, replayAPITypeChatCompletions, step.APIType)
+	}
+}
+
+func TestToolTraceStepPreservesOutputForChatCompletions(t *testing.T) {
+	ctx := &RequestContext{
+		OriginalRequestBody: []byte(`{
+			"messages": [
+				{"role": "user", "content": "Call the tool."},
+				{
+					"role": "assistant",
+					"tool_calls": [
+						{"id": "call_1", "type": "function", "function": {"name": "fn", "arguments": "{}"}}
+					]
+				},
+				{"role": "tool", "tool_call_id": "call_1", "content": [{"temperature": "18C"}]}
+			]
+		}`),
+	}
+
+	trace := buildReplayRequestToolTrace(ctx)
+	if assert.NotNil(t, trace) {
+		require.Len(t, trace.Steps, 3)
+		assert.Equal(t, replayToolStepClientToolResult, trace.Steps[2].Type)
+		assert.Contains(t, trace.Steps[2].Output, "temperature")
+	}
+}
+
+func TestToolTraceStepPreservesOutputForResponsesAPI(t *testing.T) {
+	trace := parseResponseAPIRequestToolTrace([]byte(`[
+		{"type": "message", "role": "user", "content": "Call the tool."},
+		{"type": "function_call", "call_id": "call_1", "name": "fn", "arguments": "{}"},
+		{"type": "function_call_output", "call_id": "call_1", "output": [{"temperature": "18C"}]}
+	]`))
+
+	if assert.NotNil(t, trace) {
+		require.Len(t, trace.Steps, 3)
+		assert.Equal(t, replayToolStepClientToolResult, trace.Steps[2].Type)
+		assert.Contains(t, trace.Steps[2].Output, "temperature")
+		assert.Equal(t, replayAPITypeResponses, trace.Steps[2].APIType)
 	}
 }

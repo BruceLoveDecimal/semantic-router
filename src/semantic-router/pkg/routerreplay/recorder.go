@@ -23,7 +23,8 @@ type (
 type Recorder struct {
 	storage store.Storage
 
-	maxBodyBytes int
+	maxBodyBytes     int
+	maxToolTraceBytes int
 
 	captureRequestBody  bool
 	captureResponseBody bool
@@ -37,7 +38,7 @@ func NewRecorder(storage store.Storage) *Recorder {
 	}
 }
 
-func (r *Recorder) SetCapturePolicy(captureRequest, captureResponse bool, maxBodyBytes int) {
+func (r *Recorder) SetCapturePolicy(captureRequest, captureResponse bool, maxBodyBytes int, maxToolTraceBytes int) {
 	r.captureRequestBody = captureRequest
 	r.captureResponseBody = captureResponse
 
@@ -45,6 +46,12 @@ func (r *Recorder) SetCapturePolicy(captureRequest, captureResponse bool, maxBod
 		r.maxBodyBytes = maxBodyBytes
 	} else {
 		r.maxBodyBytes = DefaultMaxBodyBytes
+	}
+
+	if maxToolTraceBytes > 0 {
+		r.maxToolTraceBytes = maxToolTraceBytes
+	} else {
+		r.maxToolTraceBytes = DefaultMaxBodyBytes
 	}
 }
 
@@ -75,6 +82,18 @@ func (r *Recorder) AddRecord(rec RoutingRecord) (string, error) {
 	if r.captureResponseBody && len(rec.ResponseBody) > r.maxBodyBytes {
 		rec.ResponseBody = rec.ResponseBody[:r.maxBodyBytes]
 		rec.ResponseBodyTruncated = true
+	}
+
+	rec.Prompt, rec.PromptTruncated = truncateString(rec.Prompt, r.maxToolTraceBytes)
+	rec.ToolDefinitions, _ = truncateString(rec.ToolDefinitions, r.maxToolTraceBytes)
+	if rec.ToolTrace != nil {
+		for i := range rec.ToolTrace.Steps {
+			step := &rec.ToolTrace.Steps[i]
+			step.Arguments, step.Truncated = truncateString(step.Arguments, r.maxToolTraceBytes)
+			var outputTruncated bool
+			step.Output, outputTruncated = truncateString(step.Output, r.maxToolTraceBytes)
+			step.Truncated = step.Truncated || outputTruncated
+		}
 	}
 
 	ctx := context.Background()
@@ -151,6 +170,13 @@ func truncateBody(body []byte, maxBytes int) (string, bool) {
 		return string(body), false
 	}
 	return string(body[:maxBytes]), true
+}
+
+func truncateString(value string, maxBytes int) (string, bool) {
+	if maxBytes <= 0 || len(value) <= maxBytes {
+		return value, false
+	}
+	return value[:maxBytes], true
 }
 
 func logSignalFields(signals Signal) map[string]interface{} {

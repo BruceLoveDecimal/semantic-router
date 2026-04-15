@@ -158,6 +158,14 @@ func redactReplayRecordMap(record map[string]any) bool {
 		record["response_body"] = ""
 		changed = true
 	}
+	if prompt, ok := record["prompt"].(string); ok && strings.TrimSpace(prompt) != "" {
+		record["prompt"] = ""
+		changed = true
+	}
+	if toolDefs, ok := record["tool_definitions"].(string); ok && strings.TrimSpace(toolDefs) != "" {
+		record["tool_definitions"] = ""
+		changed = true
+	}
 
 	toolTrace, ok := record["tool_trace"].(map[string]any)
 	if !ok {
@@ -193,6 +201,11 @@ func redactToolTraceMap(toolTrace map[string]any) bool {
 		}
 		if arguments, ok := step["arguments"].(string); ok && strings.TrimSpace(arguments) != "" {
 			step["arguments"] = ""
+			step["content_redacted"] = true
+			changed = true
+		}
+		if output, ok := step["output"].(string); ok && strings.TrimSpace(output) != "" {
+			step["output"] = ""
 			step["content_redacted"] = true
 			changed = true
 		}

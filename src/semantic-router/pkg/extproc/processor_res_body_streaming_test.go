@@ -117,7 +117,7 @@ func TestParseStreamingChunk_CapturesToolCalls(t *testing.T) {
 
 func TestFinalizeStreamingResponseRecordsReplayUsageForToolCallsOnly(t *testing.T) {
 	recorder := routerreplay.NewRecorder(store.NewMemoryStore(10, 0))
-	recorder.SetCapturePolicy(false, true, 4096)
+	recorder.SetCapturePolicy(false, true, 4096, 4096)
 
 	replayID, err := recorder.AddRecord(routerreplay.RoutingRecord{
 		ID:        "replay-stream-tool-call",

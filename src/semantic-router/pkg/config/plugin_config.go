@@ -95,6 +95,7 @@ type RouterReplayPluginConfig struct {
 	CaptureRequestBody  bool `json:"capture_request_body,omitempty" yaml:"capture_request_body,omitempty"`
 	CaptureResponseBody bool `json:"capture_response_body,omitempty" yaml:"capture_response_body,omitempty"`
 	MaxBodyBytes        int  `json:"max_body_bytes,omitempty" yaml:"max_body_bytes,omitempty"`
+	MaxToolTraceBytes   int  `json:"max_tool_trace_bytes,omitempty" yaml:"max_tool_trace_bytes,omitempty"`
 }
 
 // GetPlugin returns the plugin entry for a specific plugin type.

@@ -110,6 +110,9 @@ func (p *PostgresStore) createTable(ctx context.Context) error {
 			cost_savings DOUBLE PRECISION,
 			currency VARCHAR(32),
 			baseline_model VARCHAR(255),
+			prompt TEXT,
+			prompt_truncated BOOLEAN DEFAULT FALSE,
+			tool_definitions TEXT,
 			created_at TIMESTAMP DEFAULT NOW()
 		);
 		ALTER TABLE %s ADD COLUMN IF NOT EXISTS decision_tier INTEGER DEFAULT 0;
@@ -127,6 +130,9 @@ func (p *PostgresStore) createTable(ctx context.Context) error {
 		ALTER TABLE %s ADD COLUMN IF NOT EXISTS cost_savings DOUBLE PRECISION;
 		ALTER TABLE %s ADD COLUMN IF NOT EXISTS currency VARCHAR(32);
 		ALTER TABLE %s ADD COLUMN IF NOT EXISTS baseline_model VARCHAR(255);
+		ALTER TABLE %s ADD COLUMN IF NOT EXISTS prompt TEXT;
+		ALTER TABLE %s ADD COLUMN IF NOT EXISTS prompt_truncated BOOLEAN DEFAULT FALSE;
+		ALTER TABLE %s ADD COLUMN IF NOT EXISTS tool_definitions TEXT;
 		CREATE INDEX IF NOT EXISTS idx_%s_timestamp ON %s (timestamp DESC);
 		CREATE INDEX IF NOT EXISTS idx_%s_created_at ON %s (created_at);
 		CREATE INDEX IF NOT EXISTS idx_%s_request_id ON %s (request_id);
@@ -135,7 +141,8 @@ func (p *PostgresStore) createTable(ctx context.Context) error {
 	`, p.tableName,
 		p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName,
 		p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName,
-		p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName)
+		p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName, p.tableName,
+		p.tableName, p.tableName, p.tableName)
 
 	_, err := p.db.ExecContext(ctx, query)
 	return err

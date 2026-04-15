@@ -301,13 +301,14 @@ type ResponseAPIRedisConfig struct {
 // run Redis. Set to "memory" only for local development — all replay
 // records are lost when the router process exits.
 type RouterReplayConfig struct {
-	Enabled      bool                        `json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	StoreBackend string                      `json:"store_backend,omitempty" yaml:"store_backend,omitempty"`
-	TTLSeconds   int                         `json:"ttl_seconds,omitempty" yaml:"ttl_seconds,omitempty"`
-	AsyncWrites  bool                        `json:"async_writes,omitempty" yaml:"async_writes,omitempty"`
-	Redis        *RouterReplayRedisConfig    `json:"redis,omitempty" yaml:"redis,omitempty"`
-	Postgres     *RouterReplayPostgresConfig `json:"postgres,omitempty" yaml:"postgres,omitempty"`
-	Milvus       *RouterReplayMilvusConfig   `json:"milvus,omitempty" yaml:"milvus,omitempty"`
+	Enabled           bool                        `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	StoreBackend      string                      `json:"store_backend,omitempty" yaml:"store_backend,omitempty"`
+	TTLSeconds        int                         `json:"ttl_seconds,omitempty" yaml:"ttl_seconds,omitempty"`
+	AsyncWrites       bool                        `json:"async_writes,omitempty" yaml:"async_writes,omitempty"`
+	MaxToolTraceBytes int                         `json:"max_tool_trace_bytes,omitempty" yaml:"max_tool_trace_bytes,omitempty"`
+	Redis             *RouterReplayRedisConfig    `json:"redis,omitempty" yaml:"redis,omitempty"`
+	Postgres          *RouterReplayPostgresConfig `json:"postgres,omitempty" yaml:"postgres,omitempty"`
+	Milvus            *RouterReplayMilvusConfig   `json:"milvus,omitempty" yaml:"milvus,omitempty"`
 }
 
 type RouterReplayRedisConfig struct {

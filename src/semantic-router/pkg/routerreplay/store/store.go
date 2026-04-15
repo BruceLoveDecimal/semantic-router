@@ -57,6 +57,12 @@ type ToolTraceStep struct {
 	ToolName   string `json:"tool_name,omitempty"`
 	ToolCallID string `json:"tool_call_id,omitempty"`
 	Arguments  string `json:"arguments,omitempty"`
+	// Output preserves the raw tool output (string or JSON array for Responses API).
+	Output string `json:"output,omitempty"`
+	// APIType is the API type this step was extracted from.
+	APIType string `json:"api_type,omitempty"` // "chat_completions" | "responses"
+	// Truncated signals when arguments or output were truncated.
+	Truncated bool `json:"truncated,omitempty"`
 }
 
 // Record represents a routing decision record with metadata and captured payloads.
@@ -86,6 +92,12 @@ type Record struct {
 	Streaming             bool               `json:"streaming,omitempty"`
 	RequestBodyTruncated  bool               `json:"request_body_truncated,omitempty"`
 	ResponseBodyTruncated bool               `json:"response_body_truncated,omitempty"`
+
+	// Structured prompt (last user message or system+user), extracted before body truncation.
+	Prompt          string `json:"prompt,omitempty"`
+	PromptTruncated bool   `json:"prompt_truncated,omitempty"`
+	// Tool definitions from the request (JSON array of tool schemas).
+	ToolDefinitions string `json:"tool_definitions,omitempty"`
 
 	// Guardrails
 	GuardrailsEnabled bool `json:"guardrails_enabled,omitempty"`

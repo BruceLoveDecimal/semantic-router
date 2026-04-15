@@ -18,7 +18,8 @@ const postgresRecordSelectColumns = `
 	rag_enabled, rag_backend, rag_context_length, rag_similarity_score,
 	hallucination_enabled, hallucination_detected, hallucination_confidence, hallucination_spans,
 	prompt_tokens, completion_tokens, total_tokens,
-	actual_cost, baseline_cost, cost_savings, currency, baseline_model
+	actual_cost, baseline_cost, cost_savings, currency, baseline_model,
+	prompt, prompt_truncated, tool_definitions
 `
 
 type postgresRowScanner interface {
@@ -160,6 +161,9 @@ func (record postgresInsertRecord) args() []interface{} {
 		nullableFloat64Arg(record.record.CostSavings),
 		nullableStringArg(record.record.Currency),
 		nullableStringArg(record.record.BaselineModel),
+		record.record.Prompt,
+		record.record.PromptTruncated,
+		record.record.ToolDefinitions,
 	}
 }
 
@@ -234,6 +238,9 @@ func (row *postgresRecordRow) scanDestinations() []interface{} {
 		&row.costSavings,
 		&row.currency,
 		&row.baselineModel,
+		&row.record.Prompt,
+		&row.record.PromptTruncated,
+		&row.record.ToolDefinitions,
 	}
 }
 
