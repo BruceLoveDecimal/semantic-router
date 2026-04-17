@@ -120,10 +120,15 @@ func (r *OpenAIRouter) selectModelFromCandidates(modelRefs []config.ModelRef, de
 	for i := range modelRefs {
 		if modelRefs[i].Model == result.SelectedModel ||
 			modelRefs[i].LoRAName == result.SelectedModel {
+			selectedModelRef := &modelRefs[i]
+			selectedModelRef, gateApplied := r.applyModelSwitchGate(selCtx, result, selectedModelRef, ctx)
 			logging.Infof("[ModelSelection] Selected %s (method=%s, score=%.4f, confidence=%.2f): %s",
-				result.SelectedModel, method, result.Score, result.Confidence, result.Reasoning)
-			selection.RecordSelection(string(method), decisionName, result.SelectedModel, result.Tier, result.Score)
-			return &modelRefs[i], string(method)
+				selectedModelRef.Model, method, result.Score, result.Confidence, result.Reasoning)
+			selection.RecordSelection(string(method), decisionName, selectedModelRef.Model, result.Tier, result.Score)
+			if gateApplied {
+				return selectedModelRef, string(method) + "+model_switch_gate"
+			}
+			return selectedModelRef, string(method)
 		}
 	}
 
