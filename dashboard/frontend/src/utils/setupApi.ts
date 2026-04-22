@@ -1,6 +1,9 @@
 import {
   SetupActivateResponse,
   SetupImportRemoteResponse,
+  SetupModeDeltaResponse,
+  SetupModeImportResponse,
+  SetupModesResponse,
   SetupState,
   SetupValidateResponse,
 } from "../types/setup";
@@ -67,6 +70,38 @@ export async function importRemoteSetupConfig(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ url }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  return response.json();
+}
+
+export async function fetchSetupModes(): Promise<SetupModesResponse> {
+  const response = await fetch("/api/setup/modes");
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+  return response.json();
+}
+
+export async function fetchSetupModeDelta(
+  modeId: string,
+): Promise<SetupModeDeltaResponse> {
+  const response = await fetch(`/api/setup/modes/${modeId}/delta`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+  return response.json();
+}
+
+export async function importSetupMode(
+  modeId: string,
+): Promise<SetupModeImportResponse> {
+  const response = await fetch(`/api/setup/modes/${modeId}/import`, {
+    method: "POST",
   });
 
   if (!response.ok) {

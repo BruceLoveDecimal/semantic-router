@@ -1,10 +1,12 @@
 import styles from "./SetupWizardPage.module.css";
+import type { SetupMode, SetupModeDeltaResponse } from "../types/setup";
 import {
   DEFAULT_REMOTE_SETUP_CONFIG_URL,
   parseBaseUrl,
   PROVIDER_OPTIONS,
   SETUP_STEP_LABELS,
   type ImportedSetupConfig,
+  type ModeImportState,
   type ModelDraft,
   type RemoteImportState,
   type SetupConfigCounts,
@@ -42,10 +44,18 @@ interface RoutingStarterPanelProps {
   remoteImportState: RemoteImportState;
   remoteImportError: string | null;
   importedConfig: ImportedSetupConfig | null;
+  setupModes: SetupMode[];
+  selectedModeId: string | null;
+  modeDelta: SetupModeDeltaResponse | null;
+  modeImportState: ModeImportState;
+  modeImportError: string | null;
+  importedModeConfig: ImportedSetupConfig | null;
   counts: SetupConfigCounts;
   onSelectRoutingMode: (mode: SetupRoutingMode) => void;
+  onSelectSetupMode: (modeId: string) => void;
   onChangeRemoteConfigUrl: (value: string) => void;
   onImportRemoteConfig: () => void;
+  onImportSetupMode: () => void;
 }
 
 export function SetupRouteSummary({ currentRouteLabel }: RouteSummaryProps) {
@@ -283,14 +293,25 @@ export function RoutingStarterPanel({
   remoteImportState,
   remoteImportError,
   importedConfig,
+  setupModes,
+  selectedModeId,
+  modeDelta,
+  modeImportState,
+  modeImportError,
+  importedModeConfig,
   counts,
   onSelectRoutingMode,
+  onSelectSetupMode,
   onChangeRemoteConfigUrl,
   onImportRemoteConfig,
+  onImportSetupMode,
 }: RoutingStarterPanelProps) {
   const isScratchMode = routingMode === "scratch";
   const isRemoteMode = routingMode === "remote";
+  const isModeMode = routingMode === "mode";
   const isImporting = remoteImportState === "importing";
+  const isImportingMode = modeImportState === "importing";
+  const selectedMode = setupModes.find((mode) => mode.id === selectedModeId);
 
   return (
     <div className={styles.stepBody}>
@@ -353,7 +374,100 @@ export function RoutingStarterPanel({
               routing graph instead of starting from a blank baseline.
             </p>
           </button>
+
+          {setupModes.map((mode) => {
+            const isActive = isModeMode && selectedModeId === mode.id;
+            return (
+              <button
+                key={mode.id}
+                className={`${styles.presetCard} ${isActive ? styles.presetCardActive : ""}`}
+                onClick={() => onSelectSetupMode(mode.id)}
+              >
+                <div className={styles.presetCardHeader}>
+                  <h4 className={styles.presetCardTitle}>{mode.label}</h4>
+                  <span className={styles.presetCardMeta}>
+                    {mode.required_models.length} models
+                  </span>
+                </div>
+                <p className={styles.presetCardDescription}>{mode.summary}</p>
+              </button>
+            );
+          })}
         </div>
+
+        {isModeMode && selectedMode && (
+          <div className={styles.remoteImportPanel}>
+            <div className={styles.remoteImportSummaryHeader}>
+              <div>
+                <h4 className={styles.presetCardTitle}>{selectedMode.label}</h4>
+                <p className={styles.presetCardDescription}>
+                  {selectedMode.tradeoff}
+                </p>
+              </div>
+              <span className={styles.presetCardMeta}>
+                {modeDelta
+                  ? `${modeDelta.configured_models.length}/${selectedMode.required_models.length} configured`
+                  : "Checking models"}
+              </span>
+            </div>
+
+            {modeDelta && (
+              <div className={styles.modeModelGrid}>
+                {modeDelta.mode.required_models.map((model) => (
+                  <div
+                    key={`${model.name}-${model.role}`}
+                    className={`${styles.modeModelItem} ${
+                      model.configured
+                        ? styles.modeModelConfigured
+                        : styles.modeModelMissing
+                    }`}
+                  >
+                    <div className={styles.modeModelHeader}>
+                      <span className={styles.modeModelName}>{model.name}</span>
+                      <span className={styles.modeModelStatus}>
+                        {model.configured ? "Configured" : "Missing"}
+                      </span>
+                    </div>
+                    <div className={styles.modeModelRole}>{model.role}</div>
+                    <p className={styles.modeModelReason}>{model.reason}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {modeImportError && (
+              <div className={styles.errorPanel}>
+                <div className={styles.errorTitle}>Mode import failed</div>
+                <p className={styles.errorText}>{modeImportError}</p>
+              </div>
+            )}
+
+            <div className={styles.remoteImportActions}>
+              <button
+                className={styles.secondaryButton}
+                onClick={onImportSetupMode}
+                disabled={isImportingMode}
+              >
+                {isImportingMode ? "Preparing..." : "Use this mode"}
+              </button>
+            </div>
+
+            {importedModeConfig && (
+              <div className={styles.remoteImportSummary}>
+                <div className={styles.remoteImportSummaryHeader}>
+                  <h4 className={styles.presetCardTitle}>Mode draft ready</h4>
+                  <span className={styles.presetCardMeta}>
+                    {counts.models} models · {counts.decisions} decisions ·{" "}
+                    {counts.signals} signals
+                  </span>
+                </div>
+                <p className={styles.remoteImportSource}>
+                  {importedModeConfig.sourceUrl}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {isRemoteMode && (
           <div className={styles.remoteImportPanel}>

@@ -58,6 +58,8 @@ func registerHealthAndSetupRoutes(mux *http.ServeMux, cfg *config.Config) {
 	mux.HandleFunc("/api/setup/import-remote", handlers.SetupImportRemoteHandler(cfg.AbsConfigPath))
 	mux.HandleFunc("/api/setup/validate", handlers.SetupValidateHandler(cfg.AbsConfigPath))
 	mux.HandleFunc("/api/setup/activate", handlers.SetupActivateHandler(cfg.AbsConfigPath, cfg.ReadonlyMode, cfg.ConfigDir))
+	mux.HandleFunc("/api/setup/modes", handlers.SetupModesHandler(cfg.AbsConfigPath, cfg.RouterAPIURL))
+	mux.HandleFunc("/api/setup/modes/", handlers.SetupModesHandler(cfg.AbsConfigPath, cfg.RouterAPIURL))
 }
 
 func registerConfigRoutes(mux *http.ServeMux, cfg *config.Config) {

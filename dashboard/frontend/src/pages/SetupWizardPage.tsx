@@ -6,9 +6,13 @@ import { useSetup } from "../contexts/SetupContext";
 import { markOnboardingPending } from "../utils/onboarding";
 import {
   activateSetupConfig,
+  fetchSetupModeDelta,
+  fetchSetupModes,
+  importSetupMode,
   importRemoteSetupConfig,
   validateSetupConfig,
 } from "../utils/setupApi";
+import type { SetupMode, SetupModeDeltaResponse } from "../types/setup";
 import {
   ModelStepPanel,
   RoutingStarterPanel,
@@ -23,6 +27,7 @@ import {
   DEFAULT_REMOTE_SETUP_CONFIG_URL,
   getStepOneErrors,
   maskSecrets,
+  type ModeImportState,
   PROVIDER_OPTIONS,
   type ImportedSetupConfig,
   type ModelDraft,
@@ -44,6 +49,17 @@ const SetupWizardPage: React.FC = () => {
   const [models, setModels] = useState<ModelDraft[]>([createModelDraft(1)]);
   const [defaultModelId, setDefaultModelId] = useState<string>("");
   const [routingMode, setRoutingMode] = useState<SetupRoutingMode>("scratch");
+  const [setupModes, setSetupModes] = useState<SetupMode[]>([]);
+  const [setupModesError, setSetupModesError] = useState<string | null>(null);
+  const [selectedModeId, setSelectedModeId] = useState<string | null>(null);
+  const [modeDelta, setModeDelta] = useState<SetupModeDeltaResponse | null>(
+    null,
+  );
+  const [modeImportState, setModeImportState] =
+    useState<ModeImportState>("idle");
+  const [modeImportError, setModeImportError] = useState<string | null>(null);
+  const [importedModeConfig, setImportedModeConfig] =
+    useState<ImportedSetupConfig | null>(null);
   const [remoteConfigUrl, setRemoteConfigUrl] = useState(
     DEFAULT_REMOTE_SETUP_CONFIG_URL,
   );
@@ -83,6 +99,35 @@ const SetupWizardPage: React.FC = () => {
     }
   }, [models, defaultModelId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadModes = async () => {
+      try {
+        const result = await fetchSetupModes();
+        if (cancelled) {
+          return;
+        }
+        setSetupModes(result.modes);
+        setSetupModesError(null);
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+        setSetupModes([]);
+        setSetupModesError(
+          err instanceof Error ? err.message : "Failed to load routing modes.",
+        );
+      }
+    };
+
+    void loadModes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const stepOneErrors = getStepOneErrors(models, defaultModelId);
   const hasStepOneIssues = stepOneErrors.length > 0;
   const shouldShowStepOneIssues = stepOneAttempted && hasStepOneIssues;
@@ -119,15 +164,24 @@ const SetupWizardPage: React.FC = () => {
       scratchConfig.decisions.length > 0,
   });
 
+  const selectedSetupMode = setupModes.find((mode) => mode.id === selectedModeId);
   const currentRouteLabel =
-    routingMode === "remote" ? "From remote" : "From scratch";
+    routingMode === "remote"
+      ? "From remote"
+      : routingMode === "mode" && selectedSetupMode
+        ? selectedSetupMode.label
+        : "From scratch";
   const draftConfig =
     routingMode === "remote"
       ? (importedRemoteConfig?.config ?? null)
+      : routingMode === "mode"
+        ? (importedModeConfig?.config ?? null)
       : scratchConfig;
   const generatedCounts =
     routingMode === "remote"
       ? (importedRemoteConfig?.counts ?? createSetupConfigCounts())
+      : routingMode === "mode"
+        ? (importedModeConfig?.counts ?? createSetupConfigCounts())
       : scratchCounts;
 
   const previewSource = maskSecrets(validatedConfig ?? draftConfig);
@@ -234,11 +288,15 @@ const SetupWizardPage: React.FC = () => {
       setRemoteImportError("Import a remote config before continuing.");
       return;
     }
+    if (step === 2 && routingMode === "mode" && !importedModeConfig) {
+      setModeImportError("Prepare the selected routing mode before continuing.");
+      return;
+    }
 
     setCurrentStep(step);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep === 0) {
       if (hasStepOneIssues || scratchBuildError) {
         setStepOneAttempted(true);
@@ -256,6 +314,19 @@ const SetupWizardPage: React.FC = () => {
     ) {
       setRemoteImportError("Import a remote config before continuing.");
       return;
+    }
+
+    if (currentStep === 1 && routingMode === "mode") {
+      if (!selectedModeId) {
+        setModeImportError("Choose a routing mode before continuing.");
+        return;
+      }
+      if (!importedModeConfig) {
+        const imported = await handleImportMode();
+        if (!imported) {
+          return;
+        }
+      }
     }
 
     setCurrentStep((prev) => (prev === 2 ? prev : ((prev + 1) as SetupStep)));
@@ -325,6 +396,61 @@ const SetupWizardPage: React.FC = () => {
       setRemoteImportError(
         err instanceof Error ? err.message : "Remote import failed.",
       );
+    }
+  };
+
+  const handleSelectSetupMode = async (modeId: string) => {
+    setRoutingMode("mode");
+    setSelectedModeId(modeId);
+    setModeDelta(null);
+    setModeImportState("idle");
+    setModeImportError(null);
+    setImportedModeConfig(null);
+    setRemoteImportError(null);
+    resetReviewState();
+
+    try {
+      const result = await fetchSetupModeDelta(modeId);
+      setModeDelta(result);
+    } catch (err) {
+      setModeImportError(
+        err instanceof Error ? err.message : "Failed to inspect routing mode.",
+      );
+    }
+  };
+
+  const handleImportMode = async (): Promise<boolean> => {
+    if (!selectedModeId) {
+      setModeImportState("error");
+      setModeImportError("Choose a routing mode before importing.");
+      return false;
+    }
+
+    setModeImportState("importing");
+    setModeImportError(null);
+    resetReviewState();
+
+    try {
+      const result = await importSetupMode(selectedModeId);
+      setImportedModeConfig({
+        config: result.config,
+        sourceUrl: `Built-in mode: ${result.sourceLabel}`,
+        counts: createSetupConfigCounts({
+          models: result.models,
+          decisions: result.decisions,
+          signals: result.signals,
+          canActivate: result.canActivate,
+        }),
+      });
+      setModeImportState("imported");
+      return true;
+    } catch (err) {
+      setImportedModeConfig(null);
+      setModeImportState("error");
+      setModeImportError(
+        err instanceof Error ? err.message : "Mode import failed.",
+      );
+      return false;
     }
   };
 
@@ -412,12 +538,26 @@ const SetupWizardPage: React.FC = () => {
               remoteImportState={remoteImportState}
               remoteImportError={remoteImportError}
               importedConfig={importedRemoteConfig}
+              setupModes={setupModes}
+              selectedModeId={selectedModeId}
+              modeDelta={modeDelta}
+              modeImportState={modeImportState}
+              modeImportError={modeImportError ?? setupModesError}
+              importedModeConfig={importedModeConfig}
               counts={generatedCounts}
               onSelectRoutingMode={(mode) => {
                 setRoutingMode(mode);
                 setRemoteImportError(null);
+                setModeImportError(null);
+                if (mode !== "mode") {
+                  setSelectedModeId(null);
+                  setModeDelta(null);
+                  setImportedModeConfig(null);
+                  setModeImportState("idle");
+                }
                 resetReviewState();
               }}
+              onSelectSetupMode={(modeId) => void handleSelectSetupMode(modeId)}
               onChangeRemoteConfigUrl={(value) => {
                 setRemoteConfigUrl(value);
                 setRemoteImportError(null);
@@ -435,6 +575,7 @@ const SetupWizardPage: React.FC = () => {
                 }
               }}
               onImportRemoteConfig={() => void handleImportRemote()}
+              onImportSetupMode={() => void handleImportMode()}
             />
           )}
           {currentStep === 2 && (
@@ -463,7 +604,11 @@ const SetupWizardPage: React.FC = () => {
                 </button>
               )}
               {currentStep < 2 && (
-                <button className={styles.primaryButton} onClick={handleNext}>
+                <button
+                  className={styles.primaryButton}
+                  onClick={() => void handleNext()}
+                  disabled={modeImportState === "importing"}
+                >
                   Next
                 </button>
               )}

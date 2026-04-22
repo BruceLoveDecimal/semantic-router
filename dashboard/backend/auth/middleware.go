@@ -113,6 +113,11 @@ func settingsPermission(method, path string) (string, bool) {
 			return PermConfigWrite, true
 		}
 		return PermConfigRead, true
+	case strings.HasPrefix(path, "/api/setup/modes"):
+		if method == http.MethodGet {
+			return PermConfigRead, true
+		}
+		return PermConfigWrite, true
 	case strings.HasPrefix(path, "/api/setup/validate"),
 		strings.HasPrefix(path, "/api/setup/activate"),
 		strings.HasPrefix(path, "/api/setup/import-remote"):

@@ -36,13 +36,13 @@ const GUIDE_STEPS: GuideStep[] = [
   {
     id: 'routing',
     pageLabel: 'Decisions',
-    title: 'Turn signals into routing behavior',
+    title: 'Start from a routing mode',
     description:
-      'This is where signals become decisions, priorities, and plugins that shape how requests move through the router.',
+      'Use the first-run setup mode chooser for Balance or Security & Privacy presets, then review the resulting decisions here after activation.',
     highlights: [
-      'Compose decisions manually from signals, priorities, and plugins',
-      'Use priorities to decide which route wins first',
-      'Review plugin effects before promoting changes',
+      'Pick a maintained preset when setup mode is active',
+      'Review imported decisions, priorities, and plugins',
+      'Tune the routing tree only after the preset is activated',
     ],
     route: '/config/decisions',
     actionLabel: 'Open Decisions',

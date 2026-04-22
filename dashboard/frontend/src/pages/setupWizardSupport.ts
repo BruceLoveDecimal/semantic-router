@@ -2,8 +2,9 @@ export type SetupStep = 0 | 1 | 2;
 export type ProviderKind = "vllm" | "openai-compatible" | "anthropic";
 export type SetupValidationState = "idle" | "validating" | "valid" | "error";
 export type SetupActivationState = "idle" | "activating" | "error";
-export type SetupRoutingMode = "scratch" | "remote";
+export type SetupRoutingMode = "scratch" | "remote" | "mode";
 export type RemoteImportState = "idle" | "importing" | "imported" | "error";
+export type ModeImportState = "idle" | "importing" | "imported" | "error";
 
 export interface ModelDraft {
   id: string;
