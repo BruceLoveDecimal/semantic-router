@@ -6,14 +6,13 @@ type ToolTransitionContext struct {
 	// order after applying the configured history window. It is nil when no prior
 	// tool calls are present.
 	RecentToolNames []string
-	// TurnIndex is the current user turn number as a 1-based count of user
-	// messages observed in the request history. It is 0 when no user message is
-	// present.
-	TurnIndex int
-	// ToolCycleCount counts completed tool result messages observed so far. A
+	// UserMessageCount is the number of user messages observed in the request
+	// history. It is 0 when no user message is present.
+	UserMessageCount int
+	// ToolResultCount counts completed tool result messages observed so far. A
 	// single assistant message with three parallel tool calls followed by three
 	// tool result messages contributes 3 here.
-	ToolCycleCount int
+	ToolResultCount int
 	// SelectedDecision is the decision selected at the call site, if selection has
 	// already happened. It is empty when transition context is extracted before
 	// decision selection.
