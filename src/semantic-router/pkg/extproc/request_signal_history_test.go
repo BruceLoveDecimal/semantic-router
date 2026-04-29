@@ -47,8 +47,8 @@ func TestExtractToolTransitionContextFromRequest_ChatCompletionsNoToolCalls(t *t
 	transition := extractToolTransitionContextFromRequest(req, 2, nil)
 
 	assert.Nil(t, transition.RecentToolNames)
-	assert.Equal(t, 1, transition.TurnIndex)
-	assert.Equal(t, 0, transition.ToolCycleCount)
+	assert.Equal(t, 1, transition.UserMessageCount)
+	assert.Equal(t, 0, transition.ToolResultCount)
 	assert.Empty(t, transition.SelectedDecision)
 	assert.Empty(t, transition.SelectedCategory)
 }
@@ -71,8 +71,8 @@ func TestExtractToolTransitionContextFromRequest_ChatCompletionsToolHistory(t *t
 	})
 
 	assert.Equal(t, []string{"lookup", "summarize"}, transition.RecentToolNames)
-	assert.Equal(t, 2, transition.TurnIndex)
-	assert.Equal(t, 3, transition.ToolCycleCount)
+	assert.Equal(t, 2, transition.UserMessageCount)
+	assert.Equal(t, 3, transition.ToolResultCount)
 	assert.Equal(t, "agent-tools", transition.SelectedDecision)
 	assert.Equal(t, "coding", transition.SelectedCategory)
 }
@@ -90,8 +90,8 @@ func TestToolTransitionContextFromConversationHistoryPreservesAllToolsWhenWindow
 	})
 
 	assert.Equal(t, []string{"read_file", "list_dir", "run_tests"}, transition.RecentToolNames)
-	assert.Equal(t, 2, transition.TurnIndex)
-	assert.Equal(t, 1, transition.ToolCycleCount)
+	assert.Equal(t, 2, transition.UserMessageCount)
+	assert.Equal(t, 1, transition.ToolResultCount)
 	assert.Equal(t, "fallback-decision", transition.SelectedDecision)
 	assert.Equal(t, "maintenance", transition.SelectedCategory)
 }
@@ -122,8 +122,8 @@ func TestExtractToolTransitionContextFromRequest_NilRequestAndContext(t *testing
 	transition := extractToolTransitionContextFromRequest(nil, 2, nil)
 
 	assert.Nil(t, transition.RecentToolNames)
-	assert.Equal(t, 0, transition.TurnIndex)
-	assert.Equal(t, 0, transition.ToolCycleCount)
+	assert.Equal(t, 0, transition.UserMessageCount)
+	assert.Equal(t, 0, transition.ToolResultCount)
 	assert.Empty(t, transition.SelectedDecision)
 	assert.Empty(t, transition.SelectedCategory)
 }
@@ -140,8 +140,8 @@ func TestExtractToolTransitionContextFromRequestCountsCompletedToolResultsOnly(t
 	transition := extractToolTransitionContextFromRequest(req, 0, nil)
 
 	assert.Equal(t, []string{"search", "lookup", "summarize"}, transition.RecentToolNames)
-	assert.Equal(t, 1, transition.TurnIndex)
-	assert.Equal(t, 1, transition.ToolCycleCount)
+	assert.Equal(t, 1, transition.UserMessageCount)
+	assert.Equal(t, 1, transition.ToolResultCount)
 }
 
 func TestSignalConversationHistoryFromFastExtract_PreservesResponseAPIUserChain(t *testing.T) {
@@ -253,8 +253,8 @@ func TestSignalConversationHistoryFromFastExtract_ResponseAPITranslationPreserve
 	assert.Equal(t, []string{"search_docs"}, fast.AssistantToolNames)
 	assert.Equal(t, []string{"search_docs"}, history.assistantToolNames)
 	assert.Equal(t, []string{"search_docs"}, transition.RecentToolNames)
-	assert.Equal(t, 2, transition.TurnIndex)
-	assert.Equal(t, 1, transition.ToolCycleCount)
+	assert.Equal(t, 2, transition.UserMessageCount)
+	assert.Equal(t, 1, transition.ToolResultCount)
 }
 
 func TestSignalConversationHistoryFromFastExtract_PreservesToolTransitionNames(t *testing.T) {
@@ -271,8 +271,8 @@ func TestSignalConversationHistoryFromFastExtract_PreservesToolTransitionNames(t
 	transition := toolTransitionContextFromConversationHistory(history, 1, nil)
 
 	assert.Equal(t, []string{"run_tests"}, transition.RecentToolNames)
-	assert.Equal(t, 2, transition.TurnIndex)
-	assert.Equal(t, 2, transition.ToolCycleCount)
+	assert.Equal(t, 2, transition.UserMessageCount)
+	assert.Equal(t, 2, transition.ToolResultCount)
 
 	fast.AssistantToolNames[1] = "mutated"
 	assert.Equal(t, []string{"run_tests"}, transition.RecentToolNames)

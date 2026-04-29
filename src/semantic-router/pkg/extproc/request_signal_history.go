@@ -57,8 +57,8 @@ func extractToolTransitionContextFromRequest(req *openai.ChatCompletionNewParams
 func toolTransitionContextFromConversationHistory(history signalConversationHistory, historyWindow int, ctx *RequestContext) tools.ToolTransitionContext {
 	return tools.ToolTransitionContext{
 		RecentToolNames:  recentToolNames(history.assistantToolNames, historyWindow),
-		TurnIndex:        history.userMessageCount,
-		ToolCycleCount:   history.completedToolCycles,
+		UserMessageCount: history.userMessageCount,
+		ToolResultCount:  history.completedToolCycles,
 		SelectedDecision: selectedDecisionName(ctx),
 		SelectedCategory: selectedCategoryName(ctx),
 	}
