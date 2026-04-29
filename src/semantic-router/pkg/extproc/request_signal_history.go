@@ -1,8 +1,6 @@
 package extproc
 
 import (
-	"strings"
-
 	"github.com/openai/openai-go"
 
 	"github.com/vllm-project/semantic-router/src/semantic-router/pkg/tools"
@@ -22,7 +20,7 @@ type signalConversationHistory struct {
 	toolMessageCount       int
 	toolDefinitionCount    int
 	assistantToolCallCount int
-	completedToolCycles    int
+	toolResultCount        int
 	assistantToolNames     []string
 }
 
@@ -42,7 +40,7 @@ func signalConversationHistoryFromFastExtract(result *FastExtractResult) signalC
 		toolMessageCount:       result.ToolMessageCount,
 		toolDefinitionCount:    result.ToolDefinitionCount,
 		assistantToolCallCount: result.AssistantToolCallCount,
-		completedToolCycles:    result.CompletedToolCycles,
+		toolResultCount:        result.ToolResultCount,
 		assistantToolNames:     append([]string(nil), result.AssistantToolNames...),
 	}
 }
@@ -58,7 +56,7 @@ func toolTransitionContextFromConversationHistory(history signalConversationHist
 	return tools.ToolTransitionContext{
 		RecentToolNames:  recentToolNames(history.assistantToolNames, historyWindow),
 		UserMessageCount: history.userMessageCount,
-		ToolResultCount:  history.completedToolCycles,
+		ToolResultCount:  history.toolResultCount,
 		SelectedDecision: selectedDecisionName(ctx),
 		SelectedCategory: selectedCategoryName(ctx),
 	}
@@ -100,7 +98,7 @@ func extractSignalConversationHistory(req *openai.ChatCompletionNewParams) signa
 			}
 		case "tool":
 			history.toolMessageCount++
-			history.completedToolCycles++
+			history.toolResultCount++
 		}
 	}
 
@@ -153,28 +151,4 @@ func countSDKToolDefinitions(req *openai.ChatCompletionNewParams) int {
 		return 0
 	}
 	return len(req.Tools)
-}
-
-// extractRecentAssistantToolCallNames returns the last horizon assistant function names in chat order
-// (tool_calls across messages appended in request message order).
-func extractRecentAssistantToolCallNames(req *openai.ChatCompletionNewParams, horizon int) []string {
-	if req == nil || horizon <= 0 {
-		return nil
-	}
-	var names []string
-	for _, msg := range req.Messages {
-		if msg.OfAssistant == nil {
-			continue
-		}
-		for _, tc := range msg.OfAssistant.ToolCalls {
-			n := strings.TrimSpace(tc.Function.Name)
-			if n != "" {
-				names = append(names, n)
-			}
-		}
-	}
-	if len(names) > horizon {
-		names = names[len(names)-horizon:]
-	}
-	return names
 }

@@ -28,7 +28,7 @@ type FastExtractResult struct {
 	ToolMessageCount       int
 	ToolDefinitionCount    int
 	AssistantToolCallCount int
-	CompletedToolCycles    int
+	ToolResultCount        int
 	AssistantToolNames     []string
 }
 
@@ -113,7 +113,7 @@ func consumeFastExtractMessage(msg gjson.Result, result *FastExtractResult) {
 		recordFastExtractNonUserMessage(result, role, text)
 	case "tool":
 		result.ToolMessageCount++
-		result.CompletedToolCycles++
+		result.ToolResultCount++
 	}
 }
 
